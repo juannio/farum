@@ -1,4 +1,4 @@
-module github.com/juannio/gocker
+module github.com/juannio/farum
 
 go 1.25.5
 
