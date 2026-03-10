@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/juannio/gocker/container"
-	"github.com/juannio/gocker/image"
+	"github.com/juannio/farum/container"
+	"github.com/juannio/farum/image"
 	"github.com/spf13/cobra"
 )
 

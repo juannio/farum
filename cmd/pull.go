@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/juannio/gocker/image"
+	"github.com/juannio/farum/image"
 	"github.com/spf13/cobra"
 )
 

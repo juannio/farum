@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/juannio/gocker/cmd"
+	"github.com/juannio/farum/cmd"
 	"github.com/spf13/cobra"
 )
 
