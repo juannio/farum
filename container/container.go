@@ -1,54 +1,54 @@
 package container
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
+
+	"github.com/juannio/farum/image"
 )
 
 type Container struct {
 	ID          string
-	Image       string
+	Image       *image.Image
 	RootDir     string
 	OverlayDirs OverlayDirs
 }
 
 type OverlayDirs struct {
-	Image  string
+	Lower  string
 	Upper  string
 	Work   string
 	Merged string
 }
 
-func New(image string) (*Container, error) {
+func New(image *image.Image) (*Container, error) {
 
 	// Generate unique container ID
 	id := generateID()
 
 	rootDir := fmt.Sprintf("/tmp/gocker/containers/%s", id)
 
-	dirs := OverlayDirs{
-		Image:  filepath.Join(rootDir, "image"),  // unpacked layers
-		Upper:  filepath.Join(rootDir, "upper"),  // writable layer
-		Work:   filepath.Join(rootDir, "work"),   // overlayfs scratch
-		Merged: filepath.Join(rootDir, "merged"), // final merged view
-	}
-
 	c := &Container{
-		ID:          id,
-		Image:       image,
-		RootDir:     rootDir,
-		OverlayDirs: dirs,
+		ID:      id,
+		Image:   image,
+		RootDir: rootDir,
+		OverlayDirs: OverlayDirs{
+			Lower:  image.RootfsDir,                  // unpacked layers into /images
+			Upper:  filepath.Join(rootDir, "upper"),  // writable layer
+			Work:   filepath.Join(rootDir, "work"),   // overlayfs scratch
+			Merged: filepath.Join(rootDir, "merged"), // final merged view
+		},
 	}
 
 	return c, nil
 }
 
-func (c *Container) Setup(imageDir string) error {
+func (c *Container) Setup() error {
 
 	dirs := c.OverlayDirs.Map()
 	for _, dir := range dirs {
@@ -56,11 +56,6 @@ func (c *Container) Setup(imageDir string) error {
 			return fmt.Errorf("failed to create dir %s: %w", dir, err)
 		}
 	}
-
-	// --->> Unpack layers into /image
-	if err := c.unpackLayers(imageDir); err != nil {
-		return fmt.Errorf("failed to unpack layers: %w", err)
-	} // <<---
 
 	// --->> Mount overlayfs
 	if err := c.mountOverlayfs(); err != nil {
@@ -96,36 +91,10 @@ func (c *Container) Run(command []string) error {
 
 func (d *OverlayDirs) Map() map[string]string {
 	return map[string]string{
-		"image":  d.Image,
 		"upper":  d.Upper,
 		"work":   d.Work,
 		"merged": d.Merged,
 	}
-}
-
-func (c *Container) unpackLayers(imageDir string) error {
-	// --->> Find all layer tarballs in the img dir
-	layers, err := filepath.Glob(filepath.Join(imageDir, "*.tar.gz"))
-	if err != nil {
-		return fmt.Errorf("failed to find layers: %w", err)
-	}
-
-	if len(layers) == 0 {
-		return fmt.Errorf("no layers found in %s", imageDir)
-	}
-
-	// --->> Unpack each layer on top of previous one
-	for _, layer := range layers {
-		fmt.Printf("unpacking layers %s\n", filepath.Base(layer))
-		cmd := exec.Command("tar", "-xzf", layer, "-C", c.OverlayDirs.Image)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to unpack layer%s: %w", layer, err)
-		}
-	} // <<---
-
-	return nil
 }
 
 func (c *Container) mountOverlayfs() error {
@@ -135,7 +104,7 @@ func (c *Container) mountOverlayfs() error {
 	// workdir=work (scratch space)
 	// merged (final view)
 	opts := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s",
-		c.OverlayDirs.Image,
+		c.OverlayDirs.Lower,
 		c.OverlayDirs.Upper,
 		c.OverlayDirs.Work,
 	)

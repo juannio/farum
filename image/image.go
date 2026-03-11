@@ -6,7 +6,27 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 )
+
+type Image struct {
+	Name      string
+	Tag       string
+	ImageDir  string
+	RootfsDir string
+}
+
+func New(name, tag string) *Image {
+	imageDir := fmt.Sprintf("/tmp/gocker/images/%s/%s", name, tag)
+	var image *Image = &Image{
+		Name:      name,
+		Tag:       tag,
+		ImageDir:  imageDir,
+		RootfsDir: filepath.Join(imageDir, "rootfs"),
+	}
+	return image
+}
 
 type ManifestList struct {
 	SchemaVersion int                `json:"schemaVersion"`
@@ -154,11 +174,12 @@ func getManifestByDigest(image, digest, token string) (*Manifest, error) {
 	return &manifest, nil
 }
 
-func Pull(image, tag string) error {
-	fmt.Printf("pulling %s:%s\n", image, tag)
+// Pulls manifest and layers tarballs, unpacks into rootfs
+func (img *Image) Pull() error {
+	fmt.Printf("pulling %s:%s\n", img.Name, img.Tag)
 
 	// --->> Get token
-	token, err := getAuthToken(image)
+	token, err := getAuthToken(img.Name)
 	if err != nil {
 		return fmt.Errorf("auth failed %w", err)
 	}
@@ -166,7 +187,7 @@ func Pull(image, tag string) error {
 	// <<---
 
 	// --->> Get manifest
-	manifest, err := getManifest(image, tag, token)
+	manifest, err := getManifest(img.Name, img.Tag, token)
 	if err != nil {
 		return fmt.Errorf("failed to get manifest %w", err)
 	}
@@ -175,8 +196,7 @@ func Pull(image, tag string) error {
 	// <<---
 
 	// --->> Create directory to store image layers
-	imageDir := fmt.Sprintf("/tmp/gocker/images/%s/%s", image, tag)
-	if err := os.MkdirAll(imageDir, 0755); err != nil {
+	if err := os.MkdirAll(img.ImageDir, 0755); err != nil {
 		return fmt.Errorf("failed to create img dir: %w", err)
 	}
 	// <<---
@@ -184,14 +204,19 @@ func Pull(image, tag string) error {
 	// --->> Download each layer
 	for i, layer := range manifest.Layers {
 		fmt.Printf("downloading layer %d/%d\n", i+1, len(manifest.Layers))
-		if err := downloadLayer(image, layer.Digest, token, imageDir); err != nil {
+		if err := downloadLayer(img.Name, layer.Digest, token, img.ImageDir); err != nil {
 			return fmt.Errorf("failed to download layer %s: %w", layer.Digest, err)
 		}
+	} // <<---
+
+	// --->> Unpack layers in /<IMAGE>/<TAG>/rootfs
+	if err := unpackLayers(img.ImageDir, img.RootfsDir); err != nil {
+		return fmt.Errorf("failed to unpack layers: %w", err)
 	}
 
-	fmt.Printf("sucessfully pulled %s:%s\n", image, tag)
+	fmt.Printf("sucessfully pulled %s:%s\n", img.Name, img.Tag)
 	return nil
-	// <<---
+
 }
 
 func downloadLayer(image, digest, token, imageDir string) error {
@@ -228,6 +253,36 @@ func downloadLayer(image, digest, token, imageDir string) error {
 	if _, err := io.Copy(file, resp.Body); err != nil {
 		return fmt.Errorf("failed to write layer: %w", err)
 	}
+
+	return nil
+}
+
+func unpackLayers(imageDir string, rootfs string) error {
+	// --->> Find all layer tarballs in the img dir
+	layers, err := filepath.Glob(filepath.Join(imageDir, "*.tar.gz"))
+	if err != nil {
+		return fmt.Errorf("failed to find layers: %w", err)
+	}
+
+	if len(layers) == 0 {
+		return fmt.Errorf("no layers found in %s", imageDir)
+	} // <<---
+
+	// --->> Create rootfs dir, where tarballs will be unpacked
+	if err := os.MkdirAll(rootfs, 0755); err != nil {
+		return fmt.Errorf("failed to create rootfs dir %s: %w", rootfs, err)
+	} // <<---
+
+	// --->> Unpack each layer on rootfs top of previous one
+	for _, layer := range layers {
+		fmt.Printf("unpacking layers %s\n", filepath.Base(layer))
+		cmd := exec.Command("tar", "-xzf", layer, "-C", rootfs)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to unpack layer%s: %w", layer, err)
+		}
+	} // <<---
 
 	return nil
 }

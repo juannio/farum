@@ -26,24 +26,27 @@ func RunCmd() *cobra.Command {
 			tag := parts[1]
 			command := args[1:]
 
+			img := image.New(imageName, tag)
+
 			// --->> Check if image exists locally, pull if not
-			imageDir := fmt.Sprintf("/tmp/gocker/images/%s/%s", imageName, tag)
-			if !imageExists(imageDir) {
-				fmt.Printf("image %s:%s not found locally, pulling...\n", imageName, tag)
-				if err := image.Pull(imageName, tag); err != nil {
+			if !imageExists(img.ImageDir) {
+				fmt.Printf("image %s:%s not found locally, pulling...\n", img.Name, img.Tag)
+				if err := img.Pull(); err != nil {
 					return fmt.Errorf("failed to pull image: %w", err)
 				}
+			} else {
+				fmt.Printf("image <<%s:%s>> found locally\n", img.Name, img.Tag)
 			} // <<---
 
 			// --->> Create and setup container fs
-			c, err := container.New(imageName)
+			c, err := container.New(img)
 			if err != nil {
 				return fmt.Errorf("failed to create container: %w", err)
 			}
 
 			fmt.Printf("container created --->> %s\n", c.ID)
 
-			if err := c.Setup(imageDir); err != nil {
+			if err := c.Setup(); err != nil {
 				return fmt.Errorf("failed to setup container %s: %w", c.ID, err)
 			} // <<---
 

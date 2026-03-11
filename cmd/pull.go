@@ -18,7 +18,8 @@ func PullCmd() *cobra.Command {
 			if len(parts) != 2 {
 				return fmt.Errorf("invalid image format, use <image>:<tag>")
 			}
-			return image.Pull(parts[0], parts[1])
+			img := image.New(parts[0], parts[1])
+			return img.Pull()
 		},
 	}
 }
