@@ -49,21 +49,17 @@ func RunCmd() *cobra.Command {
 			if err := c.Setup(); err != nil {
 				return fmt.Errorf("failed to setup container %s: %w", c.ID, err)
 			} // <<---
+			// Cleanup container on any case after Setup
 			defer c.CleanUp()
 
 			// --->> Run command into container
 			fmt.Printf("running %v in container %s\n", command, c.ID)
 
-			// TODO, catch cmd.Run exit to call c.CleanUp()
 			if err := c.Run(command); err != nil {
 				return fmt.Errorf("failed to run container: %w\n", err)
 			}
 
-			if err := c.CleanUp(); err != nil {
-				return fmt.Errorf("failed to cleanup container: %w\n", err)
-			}
 			fmt.Printf("*** container %s removed successfully!\n", c.ID)
-
 			return nil
 		},
 	}
