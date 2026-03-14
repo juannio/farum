@@ -66,7 +66,6 @@ func (c *Container) Setup() error {
 }
 
 func (c *Container) Run(command []string) error {
-	// TODO
 	cmd := exec.Command(command[0], command[1:]...)
 
 	// Container's stdin, stdout, stderr to ours
@@ -86,6 +85,7 @@ func (c *Container) Run(command []string) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run command: %w", err)
 	}
+	fmt.Println("COntinue, it exited...")
 	return nil
 }
 
@@ -108,15 +108,34 @@ func (c *Container) mountOverlayfs() error {
 		c.OverlayDirs.Upper,
 		c.OverlayDirs.Work,
 	)
-	cmd := exec.Command("mount", "-t", "overlay", "overlay", "-o", opts, c.OverlayDirs.Merged)
+	/* cmd := exec.Command("mount", "-t", "overlay", "overlay", "-o", opts, c.OverlayDirs.Merged)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to mount overlay: %w", err)
+	}*/
+
+	if err := syscall.Mount("overlay", c.OverlayDirs.Merged, "overlay", 0, opts); err != nil {
+		return fmt.Errorf("failed to mount overlay: %w", err)
 	}
 
 	fmt.Printf("overlayfs mounted at %s\n", c.OverlayDirs.Merged)
+	return nil
+}
+
+func (c *Container) CleanUp() error {
+
+	// Unmount overlayfs on /merged
+	if err := syscall.Unmount(c.OverlayDirs.Merged, 0); err != nil {
+		return fmt.Errorf("error unmounting overlay on %s: %w", c.OverlayDirs.Merged, err)
+	}
+
+	// Remove container
+	if err := os.RemoveAll(c.RootDir); err != nil {
+		return fmt.Errorf("error removing container %s: %w", c.ID, err)
+	}
+
 	return nil
 }
 
