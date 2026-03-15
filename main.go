@@ -10,7 +10,7 @@ import (
 
 func main() {
 	root := &cobra.Command{
-		Use:   "gocker",
+		Use:   "farum",
 		Short: "A simple container runtime.",
 	}
 

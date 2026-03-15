@@ -31,7 +31,7 @@ func New(image *image.Image) (*Container, error) {
 	// Generate unique container ID
 	id := generateID()
 
-	rootDir := fmt.Sprintf("/tmp/gocker/containers/%s", id)
+	rootDir := fmt.Sprintf("/tmp/farum/containers/%s", id)
 
 	c := &Container{
 		ID:      id,

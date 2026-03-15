@@ -18,7 +18,7 @@ type Image struct {
 }
 
 func New(name, tag string) *Image {
-	imageDir := fmt.Sprintf("/tmp/gocker/images/%s/%s", name, tag)
+	imageDir := fmt.Sprintf("/tmp/farum/images/%s/%s", name, tag)
 	var image *Image = &Image{
 		Name:      name,
 		Tag:       tag,
