@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -62,11 +63,23 @@ func (c *Container) Setup() error {
 		return fmt.Errorf("failed to mount overlay: %w", err)
 	} // <<---
 
+	// Copy binary into container
+	// Create paths
+	binCurrentPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get bin current path: %w", err)
+	}
+	destinationPath := filepath.Join(c.OverlayDirs.Merged, "tmp", "farum")
+
+	if err := copyBin(binCurrentPath, destinationPath); err != nil {
+		return fmt.Errorf("failed to copy bin from %s to %s: %w", binCurrentPath, destinationPath, err)
+	}
+
 	return nil
 }
 
 func (c *Container) Run(command []string) error {
-	cmd := exec.Command(command[0], command[1:]...)
+	cmd := exec.Command("/tmp/farum", append([]string{"init"}, command...)...)
 
 	// Container's stdin, stdout, stderr to ours
 	cmd.Stdin = os.Stdin
@@ -79,13 +92,13 @@ func (c *Container) Run(command []string) error {
 		Cloneflags: syscall.CLONE_NEWPID |
 			syscall.CLONE_NEWNS |
 			syscall.CLONE_NEWUTS,
-		Chroot: c.OverlayDirs.Merged,
+		Chroot: c.OverlayDirs.Merged, // TODO: pivot_root?
 	}
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run command: %w", err)
 	}
-	fmt.Println("COntinue, it exited...")
+
 	return nil
 }
 
@@ -120,12 +133,12 @@ func (c *Container) mountOverlayfs() error {
 		return fmt.Errorf("failed to mount overlay: %w", err)
 	}
 
-	fmt.Printf("overlayfs mounted at %s\n", c.OverlayDirs.Merged)
 	return nil
 }
 
 func (c *Container) CleanUp() error {
 
+	// TODO: try RemoveAll if Unmount fails ayway
 	// Unmount overlayfs on /merged
 	if err := syscall.Unmount(c.OverlayDirs.Merged, 0); err != nil {
 		return fmt.Errorf("error unmounting overlay on %s: %w", c.OverlayDirs.Merged, err)
@@ -146,4 +159,35 @@ func generateID() string {
 		panic(err)
 	}
 	return hex.EncodeToString(b)
+}
+
+func copyBin(src, dst string) error {
+
+	srcBin, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcBin.Close()
+
+	dstBin, err := os.Create(dst) //Creates bin, empty
+	if err != nil {
+		return err
+	}
+	defer dstBin.Close()
+
+	//Copy src bin content into dst bin
+	_, err = io.Copy(dstBin, srcBin)
+	if err != nil {
+		return err
+	}
+
+	if err := dstBin.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Chmod(dst, 0o755); err != nil {
+		return err
+	}
+
+	return nil
 }

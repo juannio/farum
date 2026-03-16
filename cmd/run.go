@@ -58,8 +58,6 @@ func RunCmd() *cobra.Command {
 			if err := c.Run(command); err != nil {
 				return fmt.Errorf("failed to run container: %w\n", err)
 			}
-
-			fmt.Printf("*** container %s removed successfully!\n", c.ID)
 			return nil
 		},
 	}
