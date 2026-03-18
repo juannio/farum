@@ -139,9 +139,15 @@ func (c *Container) mountOverlayfs() error {
 func (c *Container) CleanUp() error {
 
 	// TODO: try RemoveAll if Unmount fails ayway
+	// Unmount procfs on /merged/proc
+	procPath := filepath.Join(c.OverlayDirs.Merged, "proc")
+	if err := syscall.Unmount(procPath, 0); err != nil {
+		return fmt.Errorf("error unmounting procfs on %s: %w", procPath, err)
+	}
+
 	// Unmount overlayfs on /merged
 	if err := syscall.Unmount(c.OverlayDirs.Merged, 0); err != nil {
-		return fmt.Errorf("error unmounting overlay on %s: %w", c.OverlayDirs.Merged, err)
+		return fmt.Errorf("error unmounting overlayfs on %s: %w", c.OverlayDirs.Merged, err)
 	}
 
 	// Remove container

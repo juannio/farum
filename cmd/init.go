@@ -16,11 +16,11 @@ func InitCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			if err := syscall.Mount("proc", "/proc", "proc", 0, ""); err != nil {
-				return fmt.Errorf("failed to mount /proc: %w", err)
+				return fmt.Errorf("failed to mount procfs at /proc: %w", err)
 			}
 
 			if err := syscall.Exec(args[0], args, os.Environ()); err != nil {
-				return fmt.Errorf("failed to mount /proc: %w", err)
+				return fmt.Errorf("failed to run command: %s: %w", args[0], err)
 			}
 			//TODO, cleanup init bin passed to container
 			return nil
