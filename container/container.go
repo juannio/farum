@@ -79,7 +79,7 @@ func (c *Container) Setup() error {
 }
 
 func (c *Container) Run(command []string) error {
-	cmd := exec.Command("/tmp/farum", append([]string{"init"}, command...)...)
+	cmd := exec.Command("/tmp/farum", append([]string{"init", c.ID}, command...)...)
 
 	// Container's stdin, stdout, stderr to ours
 	cmd.Stdin = os.Stdin
@@ -139,15 +139,9 @@ func (c *Container) mountOverlayfs() error {
 func (c *Container) CleanUp() error {
 
 	// TODO: try RemoveAll if Unmount fails ayway
-	// Unmount procfs on /merged/proc
-	procPath := filepath.Join(c.OverlayDirs.Merged, "proc")
-	if err := syscall.Unmount(procPath, 0); err != nil {
-		return fmt.Errorf("error unmounting procfs on %s: %w", procPath, err)
-	}
-
 	// Unmount overlayfs on /merged
 	if err := syscall.Unmount(c.OverlayDirs.Merged, 0); err != nil {
-		return fmt.Errorf("error unmounting overlayfs on %s: %w", c.OverlayDirs.Merged, err)
+		fmt.Printf("note: overlay unmount: %v\n", err)
 	}
 
 	// Remove container
