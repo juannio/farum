@@ -14,4 +14,5 @@ A minimal pseudo-container runtime built from scratch in Go.
 ```bash
 farum pull ubuntu:22.04
 farum run ubuntu:22.04 /bin/bash
+farum ps
 ```
