@@ -49,8 +49,15 @@ func RunCmd() *cobra.Command {
 			if err := c.Setup(); err != nil {
 				return fmt.Errorf("failed to setup container %s: %w", c.ID, err)
 			} // <<---
-			// Cleanup container on any case after Setup
+
+			cMetaData := container.NewMetaData(c, command)
+
+			if err := cMetaData.SaveMetadata(); err != nil {
+				return fmt.Errorf("failed to create metadata: %w", err)
+			}
+			// Cleanup container (and update container metadata) on any case after Setup
 			defer c.CleanUp()
+			defer cMetaData.UpdateStatus()
 
 			// --->> Run command into container
 			fmt.Printf("running %v in container %s\n", command, c.ID)
