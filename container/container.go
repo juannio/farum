@@ -86,9 +86,15 @@ func (c *Container) Run(command []string) error {
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
+	defer signal.Stop(sigs)
 
 	cmd := exec.CommandContext(ctx, "/tmp/farum", append([]string{"init", c.ID}, command...)...)
 
+	go func() {
+		<-sigs
+		cmd.Process.Signal(syscall.SIGKILL)
+		cancel()
+	}()
 	// Container's stdin, stdout, stderr to ours
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -106,18 +112,10 @@ func (c *Container) Run(command []string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to run command: %w", err)
 	}
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("failed to wait command: %w", err)
+	}
 
-	go func() {
-		<-sigs
-		cancel()
-	}()
-
-	go func() {
-		cmd.Wait()
-		cancel()
-	}()
-
-	ctx.Done()
 	return nil
 }
 
