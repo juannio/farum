@@ -53,6 +53,16 @@ func (cm *ContainerMetadata) SaveMetadata() error {
 	return nil
 }
 
+// Update container status
+// TODO: Implement <starting, stopped, running>
+func (cm *ContainerMetadata) UpdateMetaData() error {
+	cm.Status = "EXITED"
+	if err := cm.SaveMetadata(); err != nil {
+		return fmt.Errorf("failed to change status to %s: %w", cm.Status, err)
+	}
+	return nil
+}
+
 func ReadMetadata() ([]ContainerMetadata, error) {
 
 	// --->> baseDir exists?
@@ -102,14 +112,4 @@ func ReadMetadata() ([]ContainerMetadata, error) {
 	}
 
 	return all, nil
-}
-
-// Update container status
-// TODO: Implement <starting, stopped, running>
-func (cm *ContainerMetadata) UpdateStatus() error {
-	cm.Status = "EXITED"
-	if err := cm.SaveMetadata(); err != nil {
-		return fmt.Errorf("failed to change status to %s: %w", cm.Status, err)
-	}
-	return nil
 }

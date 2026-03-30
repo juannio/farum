@@ -1,12 +1,14 @@
 package container
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"syscall"
 
@@ -79,7 +81,13 @@ func (c *Container) Setup() error {
 }
 
 func (c *Container) Run(command []string) error {
-	cmd := exec.Command("/tmp/farum", append([]string{"init", c.ID}, command...)...)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
+
+	cmd := exec.CommandContext(ctx, "/tmp/farum", append([]string{"init", c.ID}, command...)...)
 
 	// Container's stdin, stdout, stderr to ours
 	cmd.Stdin = os.Stdin
@@ -95,10 +103,21 @@ func (c *Container) Run(command []string) error {
 		Chroot: c.OverlayDirs.Merged, // TODO: pivot_root?
 	}
 
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to run command: %w", err)
 	}
 
+	go func() {
+		<-sigs
+		cancel()
+	}()
+
+	go func() {
+		cmd.Wait()
+		cancel()
+	}()
+
+	ctx.Done()
 	return nil
 }
 
